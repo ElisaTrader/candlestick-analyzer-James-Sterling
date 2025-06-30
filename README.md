@@ -1,0 +1,1 @@
+# candlestick-analyzer-James-Sterling

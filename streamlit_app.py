@@ -1,91 +1,45 @@
-
 import streamlit as st
-import pandas as pd
 import yfinance as yf
+import pandas as pd
 import plotly.graph_objects as go
-import talib
-from datetime import datetime
+import ta  # libreria tecnica
 
-st.set_page_config(page_title="Candlestick Analyzer", layout="wide")
+st.title("Candlestick Trading Analyzer")
 
-st.title("📊 Candlestick Trading Analyzer")
-st.markdown("Carica un file CSV oppure inserisci un simbolo per scaricare i dati dal mercato.")
+ticker = st.text_input("Enter ticker symbol", "AAPL")
 
-# Funzione per scaricare i dati da Yahoo Finance
-def load_data(ticker, start, end):
-    data = yf.download(ticker, start=start, end=end)
-    data.reset_index(inplace=True)
-    return data
+if ticker:
+    data = yf.download(ticker, period="60d", interval="1d")
+    if not data.empty:
+        # Calcolo RSI (default window 14)
+        rsi_indicator = ta.momentum.RSIIndicator(close=data['Close'], window=14)
+        data['RSI'] = rsi_indicator.rsi()
 
-# Sezione upload o download
-upload_method = st.radio("📥 Seleziona input dati:", ["Carica CSV", "Inserisci simbolo (Yahoo Finance)"])
+        # Calcolo MACD
+        macd_indicator = ta.trend.MACD(close=data['Close'])
+        data['MACD'] = macd_indicator.macd()
+        data['MACD_signal'] = macd_indicator.macd_signal()
+        data['MACD_diff'] = macd_indicator.macd_diff()
 
-if upload_method == "Carica CSV":
-    uploaded_file = st.file_uploader("Carica il tuo file CSV (con colonne: Date, Open, High, Low, Close)", type=["csv"])
-    if uploaded_file:
-        df = pd.read_csv(uploaded_file)
-else:
-    ticker = st.text_input("Inserisci simbolo (es. AAPL, TSLA, BTC-USD):", value="AAPL")
-    start_date = st.date_input("Data inizio", datetime(2023, 1, 1))
-    end_date = st.date_input("Data fine", datetime.today())
-    if ticker:
-        df = load_data(ticker, start_date, end_date)
+        # Calcolo Bollinger Bands
+        bb_indicator = ta.volatility.BollingerBands(close=data['Close'], window=20, window_dev=2)
+        data['bb_bbm'] = bb_indicator.bollinger_mavg()
+        data['bb_bbh'] = bb_indicator.bollinger_hband()
+        data['bb_bbl'] = bb_indicator.bollinger_lband()
 
-# Se ci sono dati disponibili, analizziamoli
-if 'df' in locals():
-    st.subheader("📈 Grafico Candlestick + Indicatori")
-    df['Date'] = pd.to_datetime(df['Date'])
-    df.set_index('Date', inplace=True)
+        # Grafico candlestick con RSI e Bollinger Bands
+        fig = go.Figure()
 
-    # Indicatori tecnici
-    df['SMA20'] = df['Close'].rolling(window=20).mean()
-    df['SMA50'] = df['Close'].rolling(window=50).mean()
-    df['RSI'] = talib.RSI(df['Close'])
-    macd, signal, _ = talib.MACD(df['Close'])
-    df['MACD'] = macd
-    df['Signal'] = signal
+        fig.add_trace(go.Candlestick(
+            x=data.index,
+            open=data['Open'],
+            high=data['High'],
+            low=data['Low'],
+            close=data['Close'],
+            name='Candlestick'
+        ))
 
-    fig = go.Figure(data=[go.Candlestick(
-        x=df.index,
-        open=df['Open'],
-        high=df['High'],
-        low=df['Low'],
-        close=df['Close'],
-        name="Candlestick")])
-
-    fig.add_trace(go.Scatter(x=df.index, y=df['SMA20'], mode='lines', name='SMA20', line=dict(color='blue')))
-    fig.add_trace(go.Scatter(x=df.index, y=df['SMA50'], mode='lines', name='SMA50', line=dict(color='orange')))
-
-    st.plotly_chart(fig, use_container_width=True)
-
-    st.subheader("🔍 Pattern Candlestick Rilevati")
-
-    patterns = {
-        "Hammer": talib.CDLHAMMER,
-        "Engulfing": talib.CDLENGULFING,
-        "Doji": talib.CDLDOJI,
-        "Hanging Man": talib.CDLHANGINGMAN,
-        "Shooting Star": talib.CDLSHOOTINGSTAR
-    }
-
-    for name, func in patterns.items():
-        result = func(df['Open'], df['High'], df['Low'], df['Close'])
-        matches = df[result != 0]
-        st.markdown(f"**{name}**: trovati {len(matches)} pattern")
-        if not matches.empty:
-            st.dataframe(matches[['Open', 'High', 'Low', 'Close']].tail(5))
-
-    st.subheader("🧠 Commenti automatici")
-    latest_rsi = df['RSI'].iloc[-1]
-    if latest_rsi < 30:
-        st.warning("🔻 RSI < 30: condizione di ipervenduto, possibile rimbalzo.")
-    elif latest_rsi > 70:
-        st.warning("🔺 RSI > 70: condizione di ipercomprato, possibile inversione.")
-    else:
-        st.info("🔄 RSI neutro, nessun segnale forte.")
-
-    macd_cross = df['MACD'].iloc[-1] - df['Signal'].iloc[-1]
-    if macd_cross > 0:
-        st.success("✅ MACD sopra la Signal Line: trend positivo.")
-    else:
-        st.error("⚠️ MACD sotto la Signal Line: possibile debolezza.")
+        # Bollinger Bands (banda alta e bassa)
+        fig.add_trace(go.Scatter(
+            x=data.index, y=data['bb_bbh'],
+            line=dict(color='rgba(255,0,0,0.5)'),

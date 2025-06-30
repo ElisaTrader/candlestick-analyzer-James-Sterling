@@ -11,6 +11,10 @@ if ticker:
     if data.empty:
         st.error("No data found for ticker: " + ticker)
     else:
+        st.write(data)  # debug: mostra dati scaricati
+        
+        data.index = data.index.to_pydatetime()  # assicura datetime
+        
         fig = go.Figure(data=[go.Candlestick(
             x=data.index,
             open=data['Open'],

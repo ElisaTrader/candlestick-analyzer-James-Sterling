@@ -1,62 +1,39 @@
 import streamlit as st
 import yfinance as yf
-import plotly.graph_objects as go
+import pandas as pd
 import numpy as np
+import plotly.graph_objects as go
 
-st.title("Grafico Candlestick con RSI e Bollinger Bands")
-
-ticker = st.text_input("Inserisci il ticker", "AAPL").upper().strip()
-
-def calculate_rsi(close, period=14):
-    delta = close.diff()
-    gain = delta.clip(lower=0)
-    loss = -delta.clip(upper=0)
-    avg_gain = gain.rolling(window=period).mean()
-    avg_loss = loss.rolling(window=period).mean()
-    rs = avg_gain / avg_loss
+# Se non hai TA-Lib installato, puoi usare questo semplice calcolo RSI alternativo
+def calculate_rsi(series, period=14):
+    delta = series.diff()
+    gain = (delta.where(delta > 0, 0)).rolling(window=period).mean()
+    loss = (-delta.where(delta < 0, 0)).rolling(window=period).mean()
+    rs = gain / loss
     rsi = 100 - (100 / (1 + rs))
     return rsi
 
-def calculate_bollinger_bands(close, period=20, std_dev=2):
-    ma = close.rolling(window=period).mean()
-    std = close.rolling(window=period).std()
-    upper = ma + std_dev * std
-    lower = ma - std_dev * std
-    return ma, upper, lower
+# Calcolo Bollinger Bands
+def calculate_bollinger_bands(series, window=20, no_of_std=2):
+    ma = series.rolling(window=window).mean()
+    std = series.rolling(window=window).std()
+    upper_band = ma + (std * no_of_std)
+    lower_band = ma - (std * no_of_std)
+    return ma, upper_band, lower_band
+
+st.title("Candlestick Chart with RSI and Bollinger Bands")
+
+ticker = st.text_input("Enter ticker symbol", "AAPL").upper()
 
 if ticker:
-    data = yf.download(ticker, period="1mo", interval="1d")
-
+    data = yf.download(ticker, period="1mo", interval="1d", progress=False)
+    
     if data.empty:
-        st.error("Nessun dato trovato per il ticker inserito.")
+        st.error("No data found for ticker symbol. Please try another one.")
     else:
-        # Calcola RSI e Bollinger Bands
+        # Calcolo indicatori
         data['RSI'] = calculate_rsi(data['Close'])
         data['MA'], data['Upper'], data['Lower'] = calculate_bollinger_bands(data['Close'])
-
-        # Primo grafico: candlestick + Bollinger Bands
-        fig = go.Figure()
-
-        fig.add_trace(go.Candlestick(
-            x=data.index,
-            open=data['Open'],
-            high=data['High'],
-            low=data['Low'],
-            close=data['Close'],
-            name='Candlestick'
-        ))
-
-        fig.add_trace(go.Scatter(
-            x=data.index,
-            y=data['Upper'],
-            line=dict(color='rgba(255,0,0,0.5)', width=1),
-            name='Upper BB'
-        ))
-
-        fig.add_trace(go.Scatter(
-    x=data.index,
-    y=data['RSI'],
-    mode='lines',
-    name='RSI'
-))
+        
+        # Grafico candlestick con Bollinger Bands
 

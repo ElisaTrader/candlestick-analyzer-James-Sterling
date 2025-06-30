@@ -1,45 +1,95 @@
 import streamlit as st
 import yfinance as yf
-import numpy as np
 import pandas as pd
-import plotly.graph_objects as go
+import plotly.graph_objs as go
+from ta.momentum import RSIIndicator
 
-st.title("Candlestick Chart with RSI and Bollinger Bands")
+st.set_page_config(page_title="Candlestick Analyzer", layout="wide")
 
-ticker = st.text_input("Enter ticker symbol (e.g. AAPL):", value="AAPL")
+st.title("Candlestick Analyzer with RSI and Bollinger Bands")
+
+ticker = st.text_input("Enter a ticker symbol (e.g., AAPL)", value="AAPL").upper()
 
 if ticker:
-    # Scarica dati con auto_adjust=True
-    data = yf.download(ticker, period="1mo", interval="1d", auto_adjust=True)
+    try:
+        # Scarica dati degli ultimi 30 giorni con intervallo giornaliero
+        data = yf.download(ticker, period="1mo", interval="1d", progress=False)
 
-    if data.empty:
-        st.error("Nessun dato trovato per questo ticker. Prova un altro simbolo.")
-        st.stop()
+        if data.empty:
+            st.error("No data found for ticker symbol. Please check the symbol and try again.")
+        else:
+            # Calcolo RSI (14 periodi) usando la libreria ta (pip install ta)
+            rsi_indicator = RSIIndicator(close=data['Close'], window=14)
+            data['RSI'] = rsi_indicator.rsi()
 
-    # Se le colonne sono MultiIndex, appiattiscile
-    if isinstance(data.columns, pd.MultiIndex):
-        data.columns = [' '.join(col).strip() for col in data.columns.values]
+            # Calcolo Bollinger Bands (20 periodi)
+            window = 20
+            data['MA20'] = data['Close'].rolling(window=window).mean()
+            data['STD'] = data['Close'].rolling(window=window).std()
+            data['Upper'] = data['MA20'] + (2 * data['STD'])
+            data['Lower'] = data['MA20'] - (2 * data['STD'])
 
-    st.write("Dati scaricati (prime 5 righe):")
-    st.write(data.head())
+            data.dropna(inplace=True)
 
-    # Per sicurezza, usa solo colonne essenziali (Close, Open, High, Low)
-    required_cols = ['Open', 'High', 'Low', 'Close']
-    for col in required_cols:
-        if col not in data.columns:
-            st.error(f"Colonna '{col}' mancante nei dati scaricati.")
-            st.stop()
+            # Grafico candlestick con Bollinger Bands
+            fig = go.Figure()
 
-    # Calcolo RSI (14 periodi)
-    delta = data['Close'].diff()
-    gain = delta.where(delta > 0, 0).rolling(window=14).mean()
-    loss = -delta.where(delta < 0, 0).rolling(window=14).mean()
-    rs = gain / loss
-    rsi = 100 - (100 / (1 + rs))
-    data['RSI'] = rsi
+            fig.add_trace(go.Candlestick(
+                x=data.index,
+                open=data['Open'],
+                high=data['High'],
+                low=data['Low'],
+                close=data['Close'],
+                name='Candlestick'
+            ))
 
-    # Calcolo Bollinger Bands (20 periodi)
-    window = 20
-    data['MA20'] = data['Close'].rolling(window=window).mean()
-    data['STD'] = data['Close'].rolling(window=window).std()
-    data['Upper'] = data['MA]()
+            fig.add_trace(go.Scatter(
+                x=data.index,
+                y=data['Upper'],
+                line=dict(color='rgba(173,216,230,0.5)', width=1),
+                name='Upper BB'
+            ))
+
+            fig.add_trace(go.Scatter(
+                x=data.index,
+                y=data['MA20'],
+                line=dict(color='rgba(0,0,255,0.8)', width=1),
+                name='MA20'
+            ))
+
+            fig.add_trace(go.Scatter(
+                x=data.index,
+                y=data['Lower'],
+                line=dict(color='rgba(173,216,230,0.5)', width=1),
+                name='Lower BB'
+            ))
+
+            fig.update_layout(title=f"Candlestick Chart with Bollinger Bands for {ticker}",
+                              xaxis_title="Date",
+                              yaxis_title="Price (USD)",
+                              xaxis_rangeslider_visible=False)
+
+            st.plotly_chart(fig, use_container_width=True)
+
+            # Grafico RSI
+            fig_rsi = go.Figure()
+            fig_rsi.add_trace(go.Scatter(
+                x=data.index,
+                y=data['RSI'],
+                line=dict(color='orange', width=2),
+                name='RSI'
+            ))
+
+            fig_rsi.update_layout(title='RSI (14 periods)',
+                                  yaxis=dict(range=[0, 100]),
+                                  xaxis_title="Date",
+                                  yaxis_title="RSI Value",
+                                  shapes=[
+                                      dict(type='line', y0=70, y1=70, x0=data.index[0], x1=data.index[-1], line=dict(color='red', dash='dash')),
+                                      dict(type='line', y0=30, y1=30, x0=data.index[0], x1=data.index[-1], line=dict(color='green', dash='dash')),
+                                  ])
+
+            st.plotly_chart(fig_rsi, use_container_width=True)
+
+    except Exception as e:
+        st.error(f"An error occurred: {e}")

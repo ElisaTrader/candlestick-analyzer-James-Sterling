@@ -1,40 +1,28 @@
 import streamlit as st
 import yfinance as yf
-import ta
+import pandas as pd
 import plotly.graph_objects as go
+import talib
+import numpy as np
 
-st.title("Candlestick Analyzer con RSI e Bollinger Bands")
+st.title("Candlestick Chart with RSI and Bollinger Bands")
 
-# Input ticker da utente
-ticker = st.text_input("Inserisci il ticker (esempio: AAPL):", "AAPL")
+ticker = st.text_input("Enter stock ticker", value="AAPL")
 
 if ticker:
-    # Scarica dati storici (1 mese giornaliero)
-    data = yf.download(ticker, period="1mo", interval="1d")
+    data = yf.download(ticker, period="1mo", interval="1d", auto_adjust=True)
+    if data.empty:
+        st.error("No data found for ticker.")
+    else:
+        # Calcolo indicatori tecnici
+        close = data['Close'].values
 
-    if not data.empty:
-        # Debug: mostra shape e tipo dati Close
-        st.write("Shape Close:", data['Close'].shape)
-        st.write("Type Close:", type(data['Close']))
+        rsi = talib.RSI(close, timeperiod=14)
+        upper, middle, lower = talib.BBANDS(close, timeperiod=20)
 
-        # Assicurati che close_prices sia una Series monodimensionale
-        close_prices = data['Close']
-        if len(close_prices.shape) > 1:
-            close_prices = close_prices.iloc[:, 0]
-
-        # Calcola RSI
-        rsi_indicator = ta.momentum.RSIIndicator(close_prices)
-        data['RSI'] = rsi_indicator.rsi()
-
-        # Calcola Bollinger Bands
-        bb_indicator = ta.volatility.BollingerBands(close_prices)
-        data['bb_bbh'] = bb_indicator.bollinger_hband()
-        data['bb_bbl'] = bb_indicator.bollinger_lband()
-
-        # Crea grafico candlestick con Plotly
+        # Preparo il grafico
         fig = go.Figure()
 
-        # Candlestick
         fig.add_trace(go.Candlestick(
             x=data.index,
             open=data['Open'],
@@ -44,41 +32,36 @@ if ticker:
             name='Candlestick'
         ))
 
-        # Bollinger Bands - upper band
         fig.add_trace(go.Scatter(
             x=data.index,
-            y=data['bb_bbh'],
+            y=upper,
             line=dict(color='rgba(255,0,0,0.5)'),
-            name='Bollinger High'
+            name='Upper Bollinger Band'
         ))
-
-        # Bollinger Bands - lower band
         fig.add_trace(go.Scatter(
             x=data.index,
-            y=data['bb_bbl'],
+            y=middle,
             line=dict(color='rgba(0,0,255,0.5)'),
-            name='Bollinger Low'
+            name='Middle Bollinger Band'
         ))
-
-        # RSI su asse y2
         fig.add_trace(go.Scatter(
             x=data.index,
-            y=data['RSI'],
-            line=dict(color='orange', width=1),
-            name='RSI',
-            yaxis='y2'
+            y=lower,
+            line=dict(color='rgba(255,0,0,0.5)'),
+            name='Lower Bollinger Band'
         ))
 
-        fig.update_layout(
-            title=f'Candlestick, Bollinger Bands & RSI per {ticker.upper()}',
-            yaxis=dict(title='Price'),
-            yaxis2=dict(title='RSI', overlaying='y', side='right', range=[0, 100]),
-            xaxis_rangeslider_visible=False,
-            height=600
-        )
+        fig.update_layout(title=f'Candlestick chart for {ticker}', xaxis_title='Date', yaxis_title='Price')
 
         st.plotly_chart(fig)
-    else:
-        st.warning("Nessun dato trovato per questo ticker. Prova con un altro.")
-else:
-    st.info("Inserisci un ticker per iniziare l'analisi.")
+
+        # Mostro RSI separatamente
+        fig_rsi = go.Figure()
+        fig_rsi.add_trace(go.Scatter(
+            x=data.index,
+            y=rsi,
+            line=dict(color='orange'),
+            name='RSI'
+        ))
+        fig_rsi.update_layout(title='RSI', yaxis=dict(range=[0,100]))
+        st.plotly_chart(fig_rsi)

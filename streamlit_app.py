@@ -1,43 +1,74 @@
 import streamlit as st
 import yfinance as yf
-import plotly.graph_objects as go
 import pandas as pd
+import plotly.graph_objects as go
 
-st.title("Candlestick Chart Basic Demo")
+st.title("Candlestick Chart with RSI & Bollinger Bands")
 
-ticker = st.text_input("Enter ticker symbol:", "AAPL").upper()
+# Input interattivi
+ticker = st.text_input("Ticker", "AAPL").upper()
+period = st.selectbox("Period", ["1mo", "3mo", "6mo", "1y"], index=0)
+interval = st.selectbox("Interval", ["1d", "1wk", "1mo"], index=0)
 
 if ticker:
-    data = yf.download(ticker, period="1mo", interval="1d", progress=False)
-
-    # DEBUG: vedere le colonne
-    st.write("Columns before fix:", data.columns)
-
-    if isinstance(data.columns, pd.MultiIndex):
-        data.columns = data.columns.droplevel(1)
-    
-    st.write("Columns after fix:", data.columns)
+    data = yf.download(ticker, period=period, interval=interval, progress=False)
 
     if data.empty:
-        st.error("No data found for ticker: " + ticker)
+        st.error("No data found for ticker")
     else:
-        st.write(data)
-        st.write("NaN presenti nelle colonne:", data.isna().sum())
+        # Sistema colonne se MultiIndex
+        if isinstance(data.columns, pd.MultiIndex):
+            data.columns = data.columns.droplevel(1)
 
-        data.index = pd.to_datetime(data.index)
+        # Calcolo Bollinger Bands (20 giorni, 2 deviazioni standard)
+        data['MA20'] = data['Close'].rolling(window=20).mean()
+        data['STD'] = data['Close'].rolling(window=20).std()
+        data['Upper'] = data['MA20'] + (2 * data['STD'])
+        data['Lower'] = data['MA20'] - (2 * data['STD'])
 
-        data['Open'] = pd.to_numeric(data['Open'], errors='coerce')
-        data['High'] = pd.to_numeric(data['High'], errors='coerce')
-        data['Low'] = pd.to_numeric(data['Low'], errors='coerce')
-        data['Close'] = pd.to_numeric(data['Close'], errors='coerce')
+        # Calcolo RSI 14 periodi
+        delta = data['Close'].diff()
+        gain = (delta.where(delta > 0, 0)).rolling(window=14).mean()
+        loss = (-delta.where(delta < 0, 0)).rolling(window=14).mean()
+        rs = gain / loss
+        data['RSI'] = 100 - (100 / (1 + rs))
 
-        fig = go.Figure(data=[go.Candlestick(
+        data.dropna(inplace=True)
+
+        # Grafico candlestick con Bollinger Bands
+        fig = go.Figure()
+
+        fig.add_trace(go.Candlestick(
             x=data.index,
             open=data['Open'],
             high=data['High'],
             low=data['Low'],
-            close=data['Close']
-        )])
+            close=data['Close'],
+            name='Candlestick'
+        ))
 
-        fig.update_layout(title=f"Candlestick chart for {ticker}")
-        st.plotly_chart(fig, use_container_width=True)
+        fig.add_trace(go.Scatter(
+            x=data.index,
+            y=data['Upper'],
+            line=dict(color='rgba(255,0,0,0.5)'),
+            name='Upper Band'
+        ))
+
+        fig.add_trace(go.Scatter(
+            x=data.index,
+            y=data['MA20'],
+            line=dict(color='rgba(0,0,255,0.5)'),
+            name='MA20'
+        ))
+
+        fig.add_trace(go.Scatter(
+            x=data.index,
+            y=data['Lower'],
+            line=dict(color='rgba(255,0,0,0.5)'),
+            name='Lower Band',
+            fill='tonexty', fillcolor='rgba(255,0,0,0.1)'
+        ))
+
+        # Crea un sottografo per RSI
+        from plotly.subplots import make_subplots
+        fig_rsi = make_subp

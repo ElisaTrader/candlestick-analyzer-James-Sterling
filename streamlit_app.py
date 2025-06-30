@@ -1,38 +1,60 @@
-import streamlit as st
-import yfinance as yf
-import talib
-import plotly.graph_objects as go
-from plotly.subplots import make_subplots
-import pandas as pd
+fig = make_subplots(
+    rows=2, cols=1, shared_xaxes=True,
+    vertical_spacing=0.1,
+    row_heights=[0.7, 0.3],
+    specs=[[{"secondary_y": False}], [{"secondary_y": False}]]
+)
 
-st.title("Candlestick Analyzer con RSI e Bollinger Bands")
+fig.add_trace(
+    go.Candlestick(
+        x=data.index,
+        open=data['Open'],
+        high=data['High'],
+        low=data['Low'],
+        close=data['Close'],
+        name='Candlestick'
+    ),
+    row=1, col=1
+)
 
-ticker = st.text_input("Inserisci il ticker del titolo (es: AAPL, MSFT):", "AAPL")
+fig.add_trace(
+    go.Scatter(
+        x=data.index,
+        y=data['Upper'],
+        line=dict(color='rgba(255,0,0,0.5)'),
+        name='Upper Band'
+    ),
+    row=1, col=1
+)
 
-if ticker:
-    try:
-        # Scarica dati ultimi 30 giorni giornalieri
-        data = yf.download(ticker, period="1mo", interval="1d")
-        if data.empty:
-            st.error("Nessun dato trovato per questo ticker.")
-        else:
-            # Calcolo indicatori TA con TA-Lib (assicurati che sia installato)
-            close = data['Close'].values
-            data['RSI'] = talib.RSI(close, timeperiod=14)
-            data['MA20'] = talib.SMA(close, timeperiod=20)
-            upper, middle, lower = talib.BBANDS(close, timeperiod=20, nbdevup=2, nbdevdn=2, matype=0)
-            data['Upper'] = upper
-            data['MA20'] = middle
-            data['Lower'] = lower
+fig.add_trace(
+    go.Scatter(
+        x=data.index,
+        y=data['MA20'],
+        line=dict(color='rgba(0,0,255,0.5)'),
+        name='Middle Band (MA20)'
+    ),
+    row=1, col=1
+)
 
-            data = data.dropna()  # rimuove righe con NaN
+fig.add_trace(
+    go.Scatter(
+        x=data.index,
+        y=data['Lower'],
+        fill='tonexty',
+        fillcolor='rgba(255,0,0,0.1)',
+        line=dict(color='rgba(255,0,0,0.5)'),
+        name='Lower Band'
+    ),
+    row=1, col=1
+)
 
-            # Creazione grafico a due righe: candlestick + Bollinger Bands sopra, RSI sotto
-            fig = make_subplots(rows=2, cols=1, shared_xaxes=True,
-                                vertical_spacing=0.1,
-                                row_heights=[0.7, 0.3],
-                                specs=[[{"secondary_y": False}], [{"secondary_y": False}]])
-
-            # Candlestick + Bollinger Bands
-            fig.add_trace(go.Candlestick(
-                x=dat
+fig.add_trace(
+    go.Scatter(
+        x=data.index,
+        y=data['RSI'],
+        line=dict(color='orange'),
+        name='RSI'
+    ),
+    row=2, col=1
+)

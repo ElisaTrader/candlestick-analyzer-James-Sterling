@@ -40,5 +40,12 @@ if ticker:
         fig = go.Figure()
 
         fig.add_trace(go.Candlestick(
-            x=data.in()
+    x=data.index,
+    open=data['Open'],
+    high=data['High'],
+    low=data['Low'],
+    close=data['Close'],
+    name='Candlestick'
+))
+
 

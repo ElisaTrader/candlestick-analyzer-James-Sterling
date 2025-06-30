@@ -4,15 +4,15 @@ import plotly.graph_objects as go
 
 st.title("Test Grafico Candlestick")
 
-ticker = st.text_input("Inserisci il ticker", "AAPL")
+ticker = st.text_input("Inserisci il ticker", "AAPL").upper().strip()
 
 if ticker:
     data = yf.download(ticker, period="1mo", interval="1d")
 
     if data.empty:
-        st.write("Nessun dato trovato per questo ticker.")
+        st.error("Nessun dato trovato per il ticker inserito. Prova un ticker valido.")
     else:
-        st.write(data)  # Debug: mostra i dati scaricati
+        st.write(data)  # mostra i dati per debug
 
         fig = go.Figure()
 

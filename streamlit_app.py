@@ -1,63 +1,44 @@
 import streamlit as st
 import yfinance as yf
 import pandas as pd
-import plotly.graph_objs as go
-from ta.momentum import RSIIndicator
+import numpy as np
+import plotly.graph_objects as go
 
-st.set_page_config(page_title="Candlestick Analyzer", layout="wide")
+# Funzione per calcolare RSI
+def compute_rsi(data, window=14):
+    delta = data['Close'].diff()
+    gain = (delta.where(delta > 0, 0)).rolling(window=window).mean()
+    loss = (-delta.where(delta < 0, 0)).rolling(window=window).mean()
+    rs = gain / loss
+    rsi = 100 - (100 / (1 + rs))
+    return rsi
 
-st.title("Candlestick Analyzer with RSI and Bollinger Bands")
+# Funzione per calcolare Bollinger Bands
+def compute_bollinger_bands(data, window=20, no_of_std=2):
+    rolling_mean = data['Close'].rolling(window).mean()
+    rolling_std = data['Close'].rolling(window).std()
+    upper_band = rolling_mean + (rolling_std * no_of_std)
+    lower_band = rolling_mean - (rolling_std * no_of_std)
+    return rolling_mean, upper_band, lower_band
 
-ticker = st.text_input("Enter a ticker symbol (e.g., AAPL)", value="AAPL").upper()
+# Streamlit UI
+st.title("Candlestick Chart with RSI and Bollinger Bands")
+
+ticker = st.text_input("Enter ticker symbol:", value="AAPL")
 
 if ticker:
-    try:
-        # Download data
-        data = yf.download(ticker, period="1mo", interval="1d", progress=False)
+    data = yf.download(ticker, period="1mo", interval="1d")
+    
+    if data.empty:
+        st.error("No data found for ticker symbol. Please check the symbol and try again.")
+    else:
+        # Calcoli indicatori
+        data['RSI'] = compute_rsi(data)
+        data['MA'], data['Upper BB'], data['Lower BB'] = compute_bollinger_bands(data)
 
-        if data.empty:
-            st.error("No data found for ticker symbol. Please check the symbol and try again.")
-        else:
-            # Calculate RSI (14 periods)
-            rsi_indicator = RSIIndicator(close=data['Close'], window=14)
-            data['RSI'] = rsi_indicator.rsi()
+        # Grafico candlestick
+        fig = go.Figure()
 
-            # Calculate Bollinger Bands (20 periods)
-            window = 20
-            data['MA20'] = data['Close'].rolling(window=window).mean()
-            data['STD'] = data['Close'].rolling(window=window).std()
-            data['Upper'] = data['MA20'] + (2 * data['STD'])
-            data['Lower'] = data['MA20'] - (2 * data['STD'])
-
-            # Drop rows with NaN
-            data.dropna(inplace=True)
-
-            # Ensure all series are 1-dimensional arrays
-            index = data.index
-            open_data = data['Open'].values.flatten()
-            high_data = data['High'].values.flatten()
-            low_data = data['Low'].values.flatten()
-            close_data = data['Close'].values.flatten()
-            upper_bb = data['Upper'].values.flatten()
-            ma20 = data['MA20'].values.flatten()
-            lower_bb = data['Lower'].values.flatten()
-            rsi = data['RSI'].values.flatten()
-
-            # Candlestick + Bollinger Bands
-            fig = go.Figure()
-
-            fig.add_trace(go.Candlestick(
-                x=index,
-                open=open_data,
-                high=high_data,
-                low=low_data,
-                close=close_data,
-                name='Candlestick'
-            ))
-
-            fig.add_trace(go.Scatter(
-                x=index,
-                y=upper_bb,
-                line=dict(color='rgba(173,216,230,0.5)', width=1),
-                name='Upper BB'
+        fig.add_trace(go.Candlestick(
+            x=data.in
 

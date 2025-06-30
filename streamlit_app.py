@@ -13,9 +13,15 @@ if ticker:
     data = yf.download(ticker, period="1mo", interval="1d")
 
     if not data.empty:
-        # Assicurati che 'Close' sia Series monodimensionale
+        # Debug: mostra shape e tipo dati Close
+        st.write("Shape Close:", data['Close'].shape)
+        st.write("Type Close:", type(data['Close']))
+
+        # Assicurati che close_prices sia una Series monodimensionale
         close_prices = data['Close']
-        
+        if len(close_prices.shape) > 1:
+            close_prices = close_prices.iloc[:, 0]
+
         # Calcola RSI
         rsi_indicator = ta.momentum.RSIIndicator(close_prices)
         data['RSI'] = rsi_indicator.rsi()

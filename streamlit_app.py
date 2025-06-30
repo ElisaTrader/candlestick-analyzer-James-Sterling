@@ -40,5 +40,5 @@ if ticker:
         fig = go.Figure()
 
         fig.add_trace(go.Candlestick(
-            x=data.in)
+            x=data.in()
 

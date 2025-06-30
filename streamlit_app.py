@@ -54,5 +54,9 @@ if ticker:
         ))
 
         fig.add_trace(go.Scatter(
-            x=data.index,
-            y=d
+    x=data.index,
+    y=data['RSI'],
+    mode='lines',
+    name='RSI'
+))
+

@@ -1,19 +1,40 @@
 import streamlit as st
 import yfinance as yf
 import plotly.graph_objects as go
+import numpy as np
 
-st.title("Test Grafico Candlestick")
+st.title("Grafico Candlestick con RSI e Bollinger Bands")
 
 ticker = st.text_input("Inserisci il ticker", "AAPL").upper().strip()
+
+def calculate_rsi(close, period=14):
+    delta = close.diff()
+    gain = delta.clip(lower=0)
+    loss = -delta.clip(upper=0)
+    avg_gain = gain.rolling(window=period).mean()
+    avg_loss = loss.rolling(window=period).mean()
+    rs = avg_gain / avg_loss
+    rsi = 100 - (100 / (1 + rs))
+    return rsi
+
+def calculate_bollinger_bands(close, period=20, std_dev=2):
+    ma = close.rolling(window=period).mean()
+    std = close.rolling(window=period).std()
+    upper = ma + std_dev * std
+    lower = ma - std_dev * std
+    return ma, upper, lower
 
 if ticker:
     data = yf.download(ticker, period="1mo", interval="1d")
 
     if data.empty:
-        st.error("Nessun dato trovato per il ticker inserito. Prova un ticker valido.")
+        st.error("Nessun dato trovato per il ticker inserito.")
     else:
-        st.write(data)  # mostra i dati per debug
+        # Calcola RSI e Bollinger Bands
+        data['RSI'] = calculate_rsi(data['Close'])
+        data['MA'], data['Upper'], data['Lower'] = calculate_bollinger_bands(data['Close'])
 
+        # Primo grafico: candlestick + Bollinger Bands
         fig = go.Figure()
 
         fig.add_trace(go.Candlestick(
@@ -25,8 +46,13 @@ if ticker:
             name='Candlestick'
         ))
 
-        fig.update_layout(title=f"Candlestick Chart - {ticker}",
-                          xaxis_title="Date",
-                          yaxis_title="Price")
+        fig.add_trace(go.Scatter(
+            x=data.index,
+            y=data['Upper'],
+            line=dict(color='rgba(255,0,0,0.5)', width=1),
+            name='Upper BB'
+        ))
 
-        st.plotly_chart(fig)
+        fig.add_trace(go.Scatter(
+            x=data.index,
+            y=d
